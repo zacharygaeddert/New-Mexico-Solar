@@ -1,0 +1,203 @@
+---
+title: "New Mexico Solar Market Data"
+author: "Zach"
+date: "10/15/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(message=FALSE, warning=FALSE, echo=FALSE)
+```
+
+```{r include = F}
+library(tidyverse)
+library(lubridate)
+library(sf)
+library(leaflet)
+library(leafpop)
+library(htmltools)
+library(scales)
+library(reactable)
+library(highcharter)
+```
+
+```{r include = F}
+nm <- read.csv('Z.Gaeddert.csv') %>% 
+  mutate(developer = case_when(
+      grepl('marc |sunp', Contractor, ignore.case = T) ~ 'Marc Jones Construction dba SunPro',
+      grepl('solarworks|solar works', Contractor, ignore.case = T) ~ 'Solar Works Energy',
+      grepl('affordable', Contractor, ignore.case = T) ~ 'Affordable Solar Installations',
+      grepl('nm solar|new mexico solar', Contractor, ignore.case = T) ~ 'NM Solar Group',
+      grepl('titan', Contractor, ignore.case = T) ~ 'Titan Solar Power',
+      grepl('ION solar|ion dev', Contractor, ignore.case = T) ~ 'ION Solar',
+      grepl('poulin', Contractor, ignore.case = T) ~ 'Poulin Design Remolding',
+      grepl('yellow', Contractor, ignore.case = T) ~ 'Yellow Bird Services',
+      grepl('solcius', Contractor, ignore.case = T) ~ 'Solcius',
+      grepl('Organ M', Contractor) ~ 'Organ Mountain Solar & Electric',
+      grepl('ebanista|luna', Contractor, ignore.case = T) ~ 'Los Ebanistas/Sol Luna Solar',
+      grepl('sunstate|sun state|energized', Contractor, ignore.case = T) ~ 'SunState Solar/Energized Electric',
+      TRUE ~ Contractor))
+```
+
+# Total new capacity: **`r round(sum(nm$Size/1000),2)` MW**
+
+## Interactive map of new capacity
+
+```{r include = F}
+ziplist <- c(81326,81121,81137,81147,79022,79087,79346,85607,85632, 79847,85534,85533,85922,85920,86512,86504,86544)
+
+nm_zip <- st_read('acs2019_5yr_B01003_86000US87323.shp') %>% 
+  filter(name != 'New Mexico') %>% mutate(zip = as.numeric(name))
+
+nm_map <- nm %>% 
+  mutate(zip = as.numeric(Zip)) %>%
+  group_by(zip) %>% 
+  summarise(cap = sum(Size)) 
+
+nm_map_full <- left_join(nm_zip, nm_map, by = 'zip')
+
+zip <- read.csv('uszips.csv') %>% 
+  select(zip, city) 
+
+nm_int <- left_join(nm_map_full, zip, by = 'zip') %>% 
+  mutate(cap2 = if_else(is.na(cap),0,cap)) %>% 
+  filter(!(zip %in% ziplist)) 
+
+map_pal <- c('#e0f1f9', '#2490BD') 
+
+pal <- colorNumeric(palette = map_pal, domain = nm_int$cap, na.color = '#FFFFFF')
+labels <- sprintf("<strong>%s</strong><br/> Zip code: %s<br/> Capacity Q2 2021: %s kW",
+                  nm_int$city, nm_int$zip, round(nm_int$cap2,2)) %>% 
+  lapply(HTML)
+
+map_int <- leaflet(nm_int) %>% addTiles()
+```
+
+```{r}
+map_int %>% addPolygons(fillColor = ~pal(cap),
+                        weight = 0.5,
+                        opacity = 1,
+                        color = "gray",
+                        dashArray = "3",
+                        fillOpacity = 0.7,
+                        highlightOptions = highlightOptions(color = '#2a2a2a',
+                                                            weight = 2,
+                                                            dashArray = "",
+                                                            fillOpacity = 0.7,
+                                                            bringToFront = T),
+                        label = labels,
+                        labelOptions = labelOptions(
+                          style = list("font-weight" = "normal", padding = "3px 8px"),
+                          textsize = "15px",
+                          direction = "auto",
+                          opacity = 0.75)) %>% 
+  addProviderTiles('Esri.WorldGrayCanvas')
+
+
+```
+
+## Developer market share
+
+```{r}
+nm %>% 
+  group_by(developer) %>% 
+  summarise(cap = sum(Size),
+            n = n(),
+            mean = mean(Size)) %>% 
+  ungroup() %>% 
+  mutate(share = cap/sum(cap),
+         rank = rank(-cap),
+         developer = case_when(
+    rank > 5 ~ 'Other companies',
+    TRUE ~ developer
+  )) %>% 
+  group_by(developer) %>% 
+    summarise(cap = sum(cap),
+              n = sum(n),
+             # mean = mean(mean),
+              share = sum(share)) %>% 
+  arrange(desc(share))%>% 
+  hchart('pie', hcaes(x = developer, y = cap), name = "Capacity (kW)", startAngle = 243) %>% 
+  hc_colors(c('#F37325', '#F8AA1A', "#47B970", '#2490BD',   '#1A2B40', '#b7b7b7',  '#800000'))
+```
+
+
+```{r}
+nm %>% 
+  group_by(developer) %>% 
+  summarise(cap = sum(Size),
+            n = n()) %>% 
+  ungroup() %>% 
+  mutate(share = cap/sum(cap)) %>% 
+  arrange(desc(share)) %>% 
+  mutate(nm = if_else(grepl('positive|nm solar|affordable|solar works|organ|poulin|yellow', developer, ignore.case = T),
+                      "Yes",
+                      "No")) %>% 
+    head(10) %>%
+  select(developer, cap, n, share, nm) %>% 
+  mutate(share = paste(round(share*100,2), "%", sep = ""),
+         cap = format(round(as.numeric(cap), 2), big.mark = ",")) %>% 
+  knitr::kable(col.names = c("Developer", "Capacity (kW)", "Number of Projects", "Market Share", "New Mexico company?"),
+               digits = 2, align = 'l') %>% 
+  kableExtra::kable_styling(bootstrap_options = "striped", full_width = T #position = 'left'
+                            ) %>% 
+  #kableExtra::cell_spec(nm, color = if_else(nm == 'Yes', 'white', 'black'),
+   #                     background = if_else(nm == 'Yes', 'dark grey', 'white'),
+    #                    bold = if_else(nm == 'Yes', T, F)) %>% 
+  kableExtra::add_header_above(c("Developer Market Share Leaders - New Mexico" = 5))
+
+```
+
+## Utility capacity share
+
+```{r}
+nm %>% 
+  mutate(utility = case_when(
+      Utility == 'PNM' ~ 'PNM',
+      Utility == 'EPE' ~ 'El Paso Electric',
+      Utility == 'SPS' ~ 'Xcel Energy',
+      TRUE ~ 'Other (municipal/co-op)')) %>% 
+  group_by(utility) %>% 
+  summarise(cap = sum(Size),
+            n = n()) %>%
+  ungroup() %>% 
+  mutate(share = cap/sum(cap)) %>% 
+  arrange(desc(share)) %>% 
+   hchart('pie', hcaes(x = utility, y = cap), name = "Capacity (kW)") %>% 
+  hc_colors(c('#F37325', '#F8AA1A', "#47B970", '#2490BD',   '#1A2B40', '#b7b7b7',  '#800000'))
+```
+
+```{r}
+nm %>% 
+  group_by(Utility) %>% 
+  summarise(cap = sum(Size),
+            n = n()) %>% 
+  ungroup() %>% 
+  mutate(share = cap/sum(cap)) %>% 
+  arrange(desc(share)) %>% 
+  head(10) %>% 
+  mutate(utility = case_when(
+    Utility == 'EPE' ~ 'El Paso Electric',
+    Utility == 'other' ~ 'Not specified',
+    Utility == 'OCEC' ~ 'Otero County Electric cooperative',
+    Utility == 'SPS' ~ 'Xcel Energy',
+    Utility == 'JMEC' ~ 'Jemez Mountains Electric Cooperative',
+    Utility == 'LADPU' ~ 'Los Alamos Department of Public Utilities',
+    Utility == 'SEC' ~ 'Socorro Elecetric Cooperative',
+    Utility == 'CNMEC' ~ 'Central New Mexico Electric Cooperative',
+    Utility == 'MSMEC' ~ 'Mora-San Miguel Electric Cooperative',
+    T ~ 'PNM'
+    )) %>% 
+  select(utility, cap, n, share) %>% 
+  mutate(share = paste(round(share*100,2), "%", sep = ""),
+         cap = format(round(as.numeric(cap), 2), big.mark = ","),
+         n = format(as.numeric(n), big.mark = ",")) %>% 
+  knitr::kable(col.names = c("Developer", "Capacity (kW)", "Number of Projects", "Capacity Share"),
+               digits = 2, align = 'l') %>% 
+  kableExtra::kable_styling(bootstrap_options = "striped", full_width = T #position = 'left'
+                            ) %>% 
+  kableExtra::add_header_above(c("Utility Capacity Leaders - New Mexico" = 4))
+
+  
+```
+
