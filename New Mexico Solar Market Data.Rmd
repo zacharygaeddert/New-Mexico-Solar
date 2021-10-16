@@ -1,7 +1,5 @@
 ---
 title: "New Mexico Solar Market Data"
-author: "Zach"
-date: "10/15/2021"
 output: html_document
 ---
 
@@ -140,11 +138,9 @@ nm %>%
   knitr::kable(col.names = c("Developer", "Capacity (kW)", "Number of Projects", "Market Share", "New Mexico company?"),
                digits = 2, align = 'l') %>% 
   kableExtra::kable_styling(bootstrap_options = "striped", full_width = T #position = 'left'
-                            ) %>% 
-  #kableExtra::cell_spec(nm, color = if_else(nm == 'Yes', 'white', 'black'),
-   #                     background = if_else(nm == 'Yes', 'dark grey', 'white'),
-    #                    bold = if_else(nm == 'Yes', T, F)) %>% 
-  kableExtra::add_header_above(c("Developer Market Share Leaders - New Mexico" = 5))
+                            ) %>%
+  kableExtra::add_header_above(c("Developer Market Share Leaders - New Mexico" = 5)) %>% 
+  kableExtra::kable_styling() 
 
 ```
 
