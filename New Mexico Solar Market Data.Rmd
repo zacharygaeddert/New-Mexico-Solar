@@ -64,7 +64,7 @@ nm_int <- left_join(nm_map_full, zip, by = 'zip') %>%
 map_pal <- c('#e0f1f9', '#2490BD') 
 
 pal <- colorNumeric(palette = map_pal, domain = nm_int$cap, na.color = '#FFFFFF')
-labels <- sprintf("<strong>%s</strong><br/> Zip code: %s<br/> Capacity Q2 2021: %s kW",
+labels <- sprintf("<strong>%s</strong><br/> Zip code: %s<br/> Capacity: %s kW",
                   nm_int$city, nm_int$zip, round(nm_int$cap2,2)) %>% 
   lapply(HTML)
 
@@ -121,7 +121,7 @@ nm %>%
 
 
 ```{r}
-nm %>% 
+nm_sum <- nm %>% 
   group_by(developer) %>% 
   summarise(cap = sum(Size),
             n = n()) %>% 
