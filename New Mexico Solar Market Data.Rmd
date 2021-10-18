@@ -20,6 +20,9 @@ library(highcharter)
 ```
 
 ```{r include = F}
+nm_date <- read.csv('ZG_ReviewDate.csv') %>% 
+  rename('ID' = 'TaxCreditApplicationID')
+
 nm <- read.csv('Z.Gaeddert.csv') %>% 
   mutate(developer = case_when(
       grepl('marc |sunp', Contractor, ignore.case = T) ~ 'Marc Jones Construction dba SunPro',
@@ -34,10 +37,33 @@ nm <- read.csv('Z.Gaeddert.csv') %>%
       grepl('Organ M', Contractor) ~ 'Organ Mountain Solar & Electric',
       grepl('ebanista|luna', Contractor, ignore.case = T) ~ 'Los Ebanistas/Sol Luna Solar',
       grepl('sunstate|sun state|energized', Contractor, ignore.case = T) ~ 'SunState Solar/Energized Electric',
-      TRUE ~ Contractor))
+      TRUE ~ Contractor)) %>% 
+  left_join(nm_date, by = 'ID') %>% 
+  mutate(date = mdy(ReviewDate),
+         month = month(date),
+         year = year(date),
+         quarter = zoo::as.yearqtr(date, format = "%Y-%m-%d"))
 ```
 
 # Total new capacity: **`r round(sum(nm$Size/1000),2)` MW**
+
+```{r}
+nm %>% 
+  mutate(month = floor_date(as_date(date), "month")) %>%
+  filter(month >= '2020-10-01') %>% 
+  group_by(month) %>% 
+  summarise(cap = sum(Size)) %>% 
+  mutate(year = if_else(month >= '2021-01-01', '#1A2B40', '#F37325')) %>% 
+  hchart('column', hcaes(x = month, y = cap, color = year), name = "Capacity (kW)") %>% 
+  hc_colors(c( '#1A2B40', '#F37325',   '#F8AA1A', "#47B970", '#2490BD',  '#b7b7b7',  '#800000')) %>% 
+  hc_xAxis(title = '', labels = list(step = 0.25) #, minorTickInterval
+  ) %>% 
+  hc_yAxis(title = list(text = 'Monthly capacity (kW)'), style = list(fontSize = "5.0vh")
+           
+  )
+  
+```
+
 
 ## Interactive map of new capacity
 
@@ -165,6 +191,26 @@ nm %>%
 
 ```{r}
 nm %>% 
+  filter(date >= '2020-10-01') %>% 
+  mutate(utility = case_when(
+    Utility == 'PNM' ~ 'PNM',
+    Utility == 'EPE' ~ 'El Paso Electric',
+    Utility == 'SPS' ~ 'Xcel Energy',
+    TRUE ~ 'Other (municipal/co-op)')) %>% 
+  group_by(utility, quarter) %>%
+  summarise(cap = sum(Size)) %>%
+  mutate(utility = factor(utility, levels = c('Xcel Energy', 'Other (municipal/co-op)', 'El Paso Electric', 'PNM'))) %>% 
+  hchart('column', hcaes(x = as.factor(quarter), y = round(cap,2), group = utility)) %>% 
+  hc_colors(c('#F37325', '#F8AA1A', "#47B970", '#2490BD',   '#1A2B40', '#b7b7b7',  '#800000')) %>% 
+  hc_plotOptions(series = list(stacking = 'normal')) %>% 
+  hc_xAxis(title = '', labels = list(step = 1) #, minorTickInterval
+  ) %>% 
+  hc_yAxis(title = list(text = 'Quarterly capacity (kW)'), style = list(fontSize = "5.0vh"))
+
+```
+
+```{r}
+nm %>% 
   group_by(Utility) %>% 
   summarise(cap = sum(Size),
             n = n()) %>% 
@@ -193,7 +239,6 @@ nm %>%
   kableExtra::kable_styling(bootstrap_options = "striped", full_width = T #position = 'left'
                             ) %>% 
   kableExtra::add_header_above(c("Utility Capacity Leaders - New Mexico" = 4))
-
-  
 ```
+
 
