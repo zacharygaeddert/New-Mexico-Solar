@@ -199,9 +199,9 @@ nm %>%
     TRUE ~ 'Other (municipal/co-op)')) %>% 
   group_by(utility, quarter) %>%
   summarise(cap = sum(Size)) %>%
-  mutate(utility = factor(utility, levels = c('Xcel Energy', 'Other (municipal/co-op)', 'El Paso Electric', 'PNM'))) %>% 
+  mutate(utility = factor(utility, levels = c('Xcel Energy', 'El Paso Electric', 'Other (municipal/co-op)',  'PNM'))) %>% 
   hchart('column', hcaes(x = as.factor(quarter), y = round(cap,2), group = utility)) %>% 
-  hc_colors(c('#F37325', '#F8AA1A', "#47B970", '#2490BD',   '#1A2B40', '#b7b7b7',  '#800000')) %>% 
+  hc_colors(c('#2490BD', "#47B970", '#F8AA1A', '#F37325', '#1A2B40', '#b7b7b7',  '#800000')) %>% 
   hc_plotOptions(series = list(stacking = 'normal')) %>% 
   hc_xAxis(title = '', labels = list(step = 1) #, minorTickInterval
   ) %>% 
