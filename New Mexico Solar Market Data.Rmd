@@ -121,7 +121,7 @@ nm %>%
 
 
 ```{r}
-nm_sum <- nm %>% 
+nm %>% 
   group_by(developer) %>% 
   summarise(cap = sum(Size),
             n = n()) %>% 
